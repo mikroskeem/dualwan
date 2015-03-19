@@ -21,10 +21,10 @@ def setup_rt_table():
 		x=k.replace("\n","").split()
 		existingNums.append(x[0])
 #		if "_dualwan" in x[1]:
-#			existingTables.append(x[1].split("_")[0])
+#			existingTables.append(x[1].split("_")[0]) #TODO: moar checks on existing tables
 	rtFile.close()
 
-	print(existingNums)
+#	print(existingNums)
 #	print(existingTables)
 
 	gotNums = 0
@@ -33,7 +33,7 @@ def setup_rt_table():
 		if "{}".format(tmpNum) in existingNums:
 			tmpNum += 1
 		else:
-			if gotNums == 0:
+			if gotNums == 0:                              # This place here should be replaced
 				d["rttnumone"] = tmpNum
 				existingNums.append("{}".format(tmpNum))
 				gotNums = 1
@@ -52,7 +52,7 @@ def setup_rt_table():
 
 
 	# Now print it
-	print(conf)
+	#print(conf) #NOPE
 
 	# Reopen ${rt_table} in append mode 
 	rtFile = open(rt_table, "a")
@@ -62,17 +62,20 @@ def remove_rt_table_setup():
 	# Read everything from ${rt_table} and skip everything after Dual WAN signature
 	rtFile = open(rt_table, "r")
 	filebuf = ""
+	has_dualwan = 0
 	for k in rtFile.readlines():
 		if "# Dual WAN tables, DO NOT ADD YOUR OWN OPTIONS AFTER THESE" in k:
+			has_dualwan = 1
 			break
 		filebuf += k
 	rtFile.close()
-	# Delete file and reopen in write mode
-	os.unlink(rt_table)
-	with filelock.FileLock(rt_table):
-		rtFile = open(rt_table, "w")
-		rtFile.write(filebuf)
-		rtFile.close()
+	if has_dualwan == 1: #No need to rewrite file if no need (TODO: Better explanation)
+		# Delete file and reopen in write mode
+		os.unlink(rt_table)
+		with filelock.FileLock(rt_table):
+			rtFile = open(rt_table, "w")
+			rtFile.write(filebuf)
+			rtFile.close()
 
 def get_intf_mac(intf):
 	proc = subprocess.Popen(["ip", "link", "show", intf], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -97,7 +100,7 @@ def get_intf_ip(intf, ip6):
 				data = k.split()
 				if data[0] == "inet6":
 					continue
-				type = ("IPv4" if data[0] == "inet" else "IPv6")
+				type = ("IPv4" if data[0] == "inet" else "IPv6") #TODO: do something useful with IPv6
 				addr,prefix = data[1].split("/")
 				ips.append({"type": type, "ip": addr, "prefix": prefix})
 	else:
@@ -125,6 +128,7 @@ def get_intf_route(intf):
 	print(routes)
 	return routes
 
+# Debug shit
 #print("intone:", get_intf_ip(intone, False))
 #print("inttwo:", get_intf_ip(inttwo, False))
 #print("intone:", get_intf_mac(intone))
@@ -137,7 +141,7 @@ def get_intf_route(intf):
 def setup_intf(intf):
 	ipAddr = get_intf_ip(intf, False)[0]
 	tmpIpPrefix = ipAddr["ip"].split(".")
-	tmpIpPrefix[3] = "0/{}".format(ipAddr["prefix"])
+	tmpIpPrefix[3] = "0/{}".format(ipAddr["prefix"])    # This place is a total mess
 	ipPrefix = ".".join(tmpIpPrefix)
 	ipAddr = ipAddr["ip"]
 	ipRoute = get_intf_route(intf)[0]["route"]
@@ -146,9 +150,6 @@ def setup_intf(intf):
 	route_add = ["ip", "route", "add", ipPrefix, "dev", intf, "src", ipAddr, "table", intfTable]
 	route_defadd = ["ip", "route", "add", "default", "via", ipRoute, "table", intfTable]
 	rule_add = ["ip", "rule", "add", "from", ipAddr, "table", intfTable]
-#	print(" ".join(route_add))
-#	print(" ".join(route_defadd))
-#	print(" ".join(rule_add))
 
 	for k in [route_add,route_defadd,rule_add]:
 		proc = subprocess.Popen(k, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -172,5 +173,5 @@ def setup_whole_thing():
 #def stop_this_bullshit():
 #	remove_rt_table_setup()
 
-remove_rt_table_setup()
+remove_rt_table_setup() # Safe to call if rt_tables haven't actually set up before
 setup_whole_thing()
