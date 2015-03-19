@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
-import sys, os, subprocess
+import sys, os, subprocess, psutil
 from filelock import filelock
 
-intone = "wlo1"
-#inttwo = "wlo2"
-inttwo = "wlp0s29u1u2"
+#TODO: Better interface existence checks
+
+
+if len(sys.argv) < 3:
+	print("Usage: <intf one> <intf two>")
+	sys.exit(1)
+
+intone = sys.argv[1]
+inttwo = sys.argv[2]
 rt_table = "/etc/iproute2/rt_tables"
+
+def check_network_managers():
+	pids = [p.pid for p in psutil.process_iter() if "NetworkManager" in str(p.name)]
+	if len(pids) > 0:
+		raise BaseException("You should close other network managers before starting this script")
 
 def setup_rt_table():
 	# Initial config
@@ -140,6 +151,8 @@ def get_intf_route(intf):
 
 def setup_intf(intf):
 	ipAddr = get_intf_ip(intf, False)[0]
+	if "does not exist" in ipAddr:
+		raise BaseException("Interface {} doesn't exist".format(intf))
 	tmpIpPrefix = ipAddr["ip"].split(".")
 	tmpIpPrefix[3] = "0/{}".format(ipAddr["prefix"])    # This place is a total mess
 	ipPrefix = ".".join(tmpIpPrefix)
@@ -170,8 +183,7 @@ def setup_whole_thing():
 	if len(procerr.decode()) > 0:
 		print(procerr.decode())
 
-#def stop_this_bullshit():
-#	remove_rt_table_setup()
 
-remove_rt_table_setup() # Safe to call if rt_tables haven't actually set up before
-setup_whole_thing()
+check_network_managers() # if NM, Wicd etc. is running, then this script won't work properly
+remove_rt_table_setup()  # Safe to call if rt_tables haven't actually set up before
+setup_whole_thing()      # Does what it says

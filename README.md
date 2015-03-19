@@ -4,3 +4,4 @@ WIP
 
 Uses following lib:
 - https://github.com/dmfrey/FileLock
+- psutil
